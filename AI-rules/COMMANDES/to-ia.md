@@ -1,6 +1,6 @@
 ---
 description: Summarize project objective and current problem
-agent: think
+agent: build
 ---
 
 Génère un résumé contextuel du projet et du problème actuel :

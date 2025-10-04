@@ -1,6 +1,6 @@
 ---
 description: Review code quality and risks
-agent: think
+agent: build
 ---
 
 Analyse le code modifié et génère un rapport de review :

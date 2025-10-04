@@ -1,6 +1,6 @@
 ---
 description: Plan feature implementation
-agent: think
+agent: build
 ---
 
 Prépare un plan d'action pour implémenter la feature demandée :
