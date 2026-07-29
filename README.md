@@ -6,17 +6,20 @@ Ma configuration de développement avec agents IA — **une seule source de vér
 
 ## Comment ça marche
 
-Quatre liens symboliques, posés une fois. Les deux outils lisent les mêmes fichiers.
+Les règles sont partagées par liens symboliques. Les commandes restent la source de vérité :
+Claude Code les lit directement et le script d'installation génère les skills Codex correspondants.
 
 ```
 AI-rules/me.md       ──┬──→  ~/.claude/CLAUDE.md
                        └──→  ~/.codex/AGENTS.md
 
-AI-rules/commands/   ──┬──→  ~/.claude/commands/
-                       └──→  ~/.codex/prompts/
+AI-rules/commands/   ──────→  ~/.claude/commands/
+         └── install.sh ──→  ~/.codex/skills/<nom>/SKILL.md
 ```
 
-Conséquence : une nouvelle commande = **un fichier écrit une fois**, immédiatement disponible des deux côtés. Une correction = un fichier modifié. Plus de synchronisation manuelle.
+Conséquence : une nouvelle commande reste écrite une seule fois. Elle est immédiatement
+disponible dans Claude Code ; il faut relancer `install.sh` puis redémarrer Codex pour
+regénérer et recharger le skill.
 
 ## Installation
 
@@ -30,12 +33,15 @@ Le script est idempotent et refuse d'écraser un fichier existant non vide.
 
 | Commande | Quand | Ce qu'elle fait |
 |---|---|---|
-| `/rules` | Une fois par projet | Analyse le code réel et génère le `CLAUDE.md` + `AGENTS.md` du projet |
-| `/explain` | Code inconnu ou surprenant | Explique un fichier, une fonction ou un extrait, en lecture seule |
-| `/spec` | Avant une vraie feature | Cadre l'implémentation, produit `ai/specs/<feature>.spec.md` |
-| `/verify` | Quand l'agent dit « c'est fini » | Lance les vraies gates du projet et rapporte la sortie brute |
-| `/clean-commit` | Avant de commiter | Nettoyage, secrets, gates, message conventionnel |
-| `/context` | Blocage ou changement d'outil | Point de situation dans `ai/context/`, pour reprendre à froid |
+| `rules` | Une fois par projet | Analyse le code réel et génère le `CLAUDE.md` + `AGENTS.md` du projet |
+| `explain` | Code inconnu ou surprenant | Explique un fichier, une fonction ou un extrait, en lecture seule |
+| `spec` | Avant une vraie feature | Cadre l'implémentation, produit `ai/specs/<feature>.spec.md` |
+| `verify` | Quand l'agent dit « c'est fini » | Lance les vraies gates du projet et rapporte la sortie brute |
+| `clean-commit` | Avant de commiter | Nettoyage, secrets, gates, message conventionnel |
+| `context` | Blocage ou changement d'outil | Point de situation dans `ai/context/`, pour reprendre à froid |
+
+Dans Claude Code, une commande s'invoque avec `/nom`. Dans Codex, le skill
+correspondant s'invoque avec `$nom` ou depuis le sélecteur de skills.
 
 ### Le bon dosage
 
@@ -73,16 +79,19 @@ argument-hint: [ce qu'on peut passer après]
 Les instructions. "$ARGUMENTS" reçoit ce qui est tapé après la commande.
 ```
 
-Elle est immédiatement disponible via `/<nom>` dans Claude Code et dans Codex. Rien à réinstaller.
+Elle est immédiatement disponible via `/<nom>` dans Claude Code. Relancer ensuite
+`AI-rules/install.sh` et redémarrer Codex pour disposer de `$nom`.
 
 Une commande mérite d'exister si elle encode une checklist qu'on oublierait, impose un format, ou contraint l'agent. Si elle se résume à « fais le travail correctement », c'est un prompt normal.
 
 ## Commande ou skill ?
 
-- **Commande** : *toi* qui déclenches en tapant `/nom`. Portable entre les deux outils.
-- **Skill** : *l'agent* qui la charge quand il juge le sujet pertinent. Format Claude Code, pas d'équivalent direct côté Codex.
+- **Commande Claude Code** : déclenchement explicite via `/nom`.
+- **Skill Codex** : déclenchement explicite via `$nom`, ou implicite selon la description.
 
-Le test : *« est-ce que je saurai, moi, quand j'en ai besoin ? »* Oui → commande. Non, mais l'agent devrait le savoir → règle projet ou skill.
+Le contenu métier reste commun, mais les mécanismes d'intégration diffèrent. Le script
+convertit le frontmatter Claude Code vers le frontmatter minimal attendu par Codex et
+retire le placeholder `$ARGUMENTS`, qui n'existe pas dans les skills.
 
 ## Structure
 
@@ -92,7 +101,7 @@ dev-with-ai/
 └── AI-rules/
     ├── me.md              # règles globales
     ├── commands/          # les commandes, partagées
-    ├── install.sh         # pose les 4 liens
+    ├── install.sh         # pose les liens et génère les skills Codex
     └── ARCHIVES/          # version OpenCode, pour référence
 ```
 
