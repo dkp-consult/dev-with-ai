@@ -31,6 +31,7 @@ Le script est idempotent et refuse d'écraser un fichier existant non vide.
 | Commande | Quand | Ce qu'elle fait |
 |---|---|---|
 | `/rules` | Une fois par projet | Analyse le code réel et génère le `CLAUDE.md` + `AGENTS.md` du projet |
+| `/explain` | Code inconnu ou surprenant | Explique un fichier, une fonction ou un extrait, en lecture seule |
 | `/spec` | Avant une vraie feature | Cadre l'implémentation, produit `ai/specs/<feature>.spec.md` |
 | `/verify` | Quand l'agent dit « c'est fini » | Lance les vraies gates du projet et rapporte la sortie brute |
 | `/clean-commit` | Avant de commiter | Nettoyage, secrets, gates, message conventionnel |
@@ -46,6 +47,7 @@ Le workflow complet ne se déroule pas pour tout. C'est même la moitié du gain
 | Feature réelle, refacto structurant | `/spec` → travail → `/verify` → `/clean-commit` |
 | Nouveau projet | `/rules`, une fois |
 | Blocage ou passage Claude ↔ Codex | `/context` |
+| Code repris, hérité ou surprenant | `/explain` |
 
 ## Les deux niveaux de règles
 
@@ -89,7 +91,7 @@ dev-with-ai/
 ├── README.md
 └── AI-rules/
     ├── me.md              # règles globales
-    ├── commands/          # les 5 commandes, partagées
+    ├── commands/          # les commandes, partagées
     ├── install.sh         # pose les 4 liens
     └── ARCHIVES/          # version OpenCode, pour référence
 ```
