@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Artefacts de traçabilité générés dans les projets
+ai/
