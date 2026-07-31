@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Installe les règles partagées, les commandes Claude Code et les skills Codex.
+# Installe les règles partagées, les commandes Claude Code et les skills Codex,
+# ainsi que les briques propres à Claude Code : sous-agents et hooks.
 # Idempotent : relançable sans risque.
 #
 #   ./install.sh
@@ -70,10 +71,46 @@ install_codex_skill() {
     printf 'description: %s\n' "$description"
     printf '%s\n\n' '---'
     printf '%s\n\n' '<!-- managed by dev-with-ai/AI-rules/install.sh -->'
-    awk '
+    # Codex n'a pas de sous-agents : un marqueur `<!-- fallback:chemin -->`
+    # dans une commande y injecte le contenu du sous-agent référencé, pour que
+    # le skill reste autonome. Claude Code, lui, ignore le commentaire et
+    # délègue au vrai sous-agent.
+    awk -v repo="$REPO" '
       NR == 1 && $0 == "---" { in_frontmatter = 1; next }
       in_frontmatter && $0 == "---" { in_frontmatter = 0; next }
-      !in_frontmatter {
+      in_frontmatter { next }
+
+      /^<!-- fallback:.*-->[[:space:]]*$/ {
+        path = $0
+        sub(/^<!-- fallback:[[:space:]]*/, "", path)
+        sub(/[[:space:]]*-->[[:space:]]*$/, "", path)
+        src = repo "/" path
+
+        n = 0
+        body = ""
+        fm = 0
+        seen = 0
+        while ((getline line < src) > 0) {
+          if (!seen && line == "---") { fm = 1; seen = 1; continue }
+          if (fm && line == "---") { fm = 0; continue }
+          if (!fm) { body = body line "\n"; n++ }
+        }
+        close(src)
+
+        if (n == 0) {
+          print "ERREUR : fallback introuvable -> " src > "/dev/stderr"
+          next
+        }
+
+        print "## Annexe — méthode de conception, pour un outil sans sous-agents"
+        print ""
+        print "Applique cette méthode toi-même, à la place de la délégation demandée en étape 1."
+        print ""
+        printf "%s", body
+        next
+      }
+
+      {
         gsub(/\$ARGUMENTS/, "la demande utilisateur qui invoque ce skill")
         print
       }
@@ -94,12 +131,56 @@ link "$REPO/me.md" "$HOME/.codex/AGENTS.md"
 # Commandes Claude Code
 link "$REPO/commands" "$HOME/.claude/commands"
 
+# Sous-agents et hooks : Claude Code uniquement, Codex n'a pas d'équivalent
+link "$REPO/agents" "$HOME/.claude/agents"
+link "$REPO/hooks" "$HOME/.claude/hooks"
+chmod +x "$REPO"/hooks/*.sh
+
 # Skills Codex — générés car les custom prompts sont dépréciés
 for command_file in "$REPO"/commands/*.md; do
   install_codex_skill "$command_file"
 done
 
+# --- Déclaration du hook -------------------------------------------------
+# Volontairement non automatisée : settings.json peut contenir d'autres hooks,
+# et une fusion à l'aveugle sur un fichier de configuration personnel se paie cher.
+settings="$HOME/.claude/settings.json"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo
+  echo "ATTENTION : jq est absent, le hook protect-tests sera inactif."
+  echo "            brew install jq"
+fi
+
+if [ -f "$settings" ] && grep -q 'protect-tests.sh' "$settings"; then
+  echo
+  echo "OK hook protect-tests déjà déclaré dans $settings"
+else
+  echo
+  echo "À FAIRE — le hook est posé mais pas déclaré."
+  echo "Ajoute cette entrée au tableau hooks.PreToolUse de $settings :"
+  echo
+  cat <<'JSON'
+    {
+      "matcher": "Edit|Write|NotebookEdit|Bash",
+      "hooks": [
+        { "type": "command", "command": "$HOME/.claude/hooks/protect-tests.sh" }
+      ]
+    }
+JSON
+  echo
+  echo "Puis vérifie qu'il bloque réellement — un hook qui laisse tout passer"
+  echo "est pire que pas de hook :"
+  echo
+  echo '  printf %s "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/x.test.ts\"}}" \'
+  echo '    | ~/.claude/hooks/protect-tests.sh ; echo "exit=$?"'
+  echo
+  echo "  (crée x.test.ts avant : le hook autorise la création, bloque la modification)"
+  echo "  Attendu : message de blocage et exit=2."
+fi
+
 echo
 echo "Installation terminée."
-echo "Claude Code : /clean-commit"
+echo "Claude Code : redémarre-le — le watcher ne voit pas un répertoire créé"
+echo "              après le démarrage de la session. Vérifie ensuite avec /agents."
 echo "Codex : redémarre Codex, puis invoque \$clean-commit ou sélectionne le skill."
