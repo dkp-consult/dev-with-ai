@@ -1,7 +1,7 @@
 ---
 description: Rédige la spec technique d'une feature avant implémentation
 argument-hint: <nom de la feature> — <description>
-allowed-tools: Read, Glob, Grep, Write, Bash(git log:*), Bash(mkdir:*), Bash(ls:*)
+allowed-tools: Read, Glob, Grep, Write, Task, Agent, Bash(git log:*), Bash(mkdir:*), Bash(ls:*)
 ---
 
 Rédige une spécification technique pour : "$ARGUMENTS"
@@ -10,6 +10,7 @@ Rédige une spécification technique pour : "$ARGUMENTS"
 
 1. Lis le `CLAUDE.md` / `AGENTS.md` du projet s'il existe.
 2. Explore le code réel pour relever les conventions en vigueur : structure des dossiers, nommage, découpage des fichiers, style des tests. **La spec suit les conventions du projet, pas un modèle générique.**
+   Si ton outil dispose d'un sous-agent d'exploration en lecture seule (`Explore` dans Claude Code), délègue-lui cette étape : vingt lectures de fichiers n'ont pas à occuper la fenêtre où la spec va s'écrire. Passe-lui le nom de la feature, sa description et la racine du projet — **son contexte démarre vide**, il ne voit rien de notre conversation.
 3. Repère les modules existants que la feature va toucher ou réutiliser.
 4. Vérifie si une spec existe déjà pour cette feature (`ls ai/specs/`).
 
@@ -43,8 +44,9 @@ Créé ou modifié. Chemins réels, cohérents avec l'arborescence existante.
 Signatures des fonctions, types et contrats introduits. Pas d'implémentation.
 
 ## Tests
-Cas à couvrir, formulés en « should … ».
+Les règles métier que la feature doit garantir, énoncées comme des affirmations vérifiables.
 Inclut les cas limites et les erreurs, pas seulement le chemin heureux.
+Cette section est la source de vérité de `/test-write` : ce qui n'y figure pas donnera un test dérivé du code, donc un test qui certifie le comportement au lieu de le vérifier.
 
 ## Risques et points ouverts
 Ce qui peut casser ailleurs, les décisions que je dois trancher, les inconnues.

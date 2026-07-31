@@ -32,6 +32,21 @@ Si le projet expose un mode watch par défaut (`vitest`, `jest` sans `--ci`), ut
 Lance chaque gate trouvée, dans cet ordre : **typecheck → lint → format → test → build**.
 Ne t'arrête pas à la première erreur — lance tout, je veux la vue complète.
 
+Si le projet expose un script agrégé (`check`, `ci`, `validate`), ne t'en contente pas : il rend le résultat binaire et masque quelle gate a lâché. Lance les gates une par une.
+
+### Gate `test` — règle de comptage
+
+Rapporte systématiquement le **nombre de tests exécutés**, pas seulement le statut. Une suite vide passe trivialement : zéro test lancé, zéro échec, vert. C'est un vert qui ment, plus coûteux qu'un rouge.
+
+| Situation | Statut |
+|---|---|
+| Aucun runner configuré | `NON COUVERT` |
+| Runner présent, 0 test collecté | `NON COUVERT` |
+| Tests exécutés, tous verts | `OK (N tests)` |
+| Au moins un échec | `ÉCHEC`, sortie brute |
+
+`NON COUVERT` n'est pas un échec bloquant : c'est un manque à signaler explicitement, pour qu'il ne se déguise pas en succès.
+
 ## 3. Rapporte
 
 Pour chaque gate : le résultat et la commande exacte utilisée.
@@ -42,7 +57,10 @@ Termine par un tableau :
 | Gate | Commande | Résultat |
 |---|---|---|
 
-Résultats possibles : `OK` · `ÉCHEC` · `non lancée` · `absente du projet` · `non lançable en lecture seule`.
+Résultats possibles : `OK` · `OK (N tests)` · `ÉCHEC` · `NON COUVERT` · `non lancée` · `absente du projet` · `non lançable en lecture seule`.
+
+Si au moins une gate est `NON COUVERT`, termine par une ligne :
+« Gates non couvertes : <liste> — `/test-setup` pour l'outillage, `/test-write` pour couvrir un module. »
 
 ## Règles absolues
 

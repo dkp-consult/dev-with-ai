@@ -31,21 +31,31 @@ En cas de doute : **arrête-toi et signale-le.**
 
 Applique la procédure de `/verify` : ordre **typecheck → lint → format → test → build**, uniquement des commandes lues dans le projet, sortie brute en cas d'échec, et une gate non lancée n'est jamais une gate passée.
 
+Pour la gate `test`, donne le **nombre de tests exécutés**. Une suite vide n'est pas une suite verte : marque-la `NON COUVERT`.
+
 **Si une gate échoue, arrête-toi et rapporte.** Tu ne corriges pas de ta propre initiative : tu me montres l'erreur brute et tu proposes le correctif. Je décide si tu l'appliques.
 
-## 5. Documentation
+## 5. Tests
+
+Si le diff contient des modifications de fichiers de test **existants**, signale-le explicitement et **isole-les** : un commit `test:` distinct du `fix:` ou du `feat:` correspondant.
+
+Un test modifié dans le même commit que le code qu'il vérifie est invisible en relecture. C'est exactement là que se cache une assertion affaiblie pour faire passer une gate.
+
+Ajouter de nouveaux tests dans le même commit que la feature : normal et souhaitable. Modifier ou supprimer un test existant : à isoler, et à me justifier en une phrase par fichier.
+
+## 6. Documentation
 
 - Si le changement modifie l'usage (API publique, configuration, commande, comportement visible) : mets à jour le README ou le CHANGELOG.
 - Sinon, ne crée pas de documentation inutile.
 
-## 6. Staging
+## 7. Staging
 
 Stage **explicitement, fichier par fichier** : `git add chemin/du/fichier`.
 Jamais `git add .`, jamais `git add -A`, jamais `git add -u`. Un fichier non lié à la tâche ne se retrouve pas dans l'index par accident.
 
 Termine par `git diff --staged` pour confirmer que l'index correspond exactement à ce que tu annonces.
 
-## 7. Message proposé
+## 8. Message proposé
 
 - Conventional Commits, en anglais, à l'impératif présent.
 - Le sujet décrit l'intention, pas la mécanique : `fix(auth): prevent session loss on refresh`, pas `update auth.ts`.
@@ -60,8 +70,9 @@ Précisions éventuelles : "$ARGUMENTS"
 Donne-moi :
 
 1. les fichiers stagés, et ceux volontairement laissés de côté ;
-2. les gates lancées **avec leur résultat réel** et la commande exacte ;
-3. le message proposé, dans un bloc de code prêt à copier ;
-4. la commande à lancer pour committer.
+2. les gates lancées **avec leur résultat réel** et la commande exacte, nombre de tests inclus ;
+3. les fichiers de test existants modifiés, s'il y en a, et le commit `test:` séparé proposé ;
+4. le message proposé, dans un bloc de code prêt à copier ;
+5. la commande à lancer pour committer.
 
 Si quelque chose n'a pas pu être vérifié, dis-le au lieu de le passer sous silence.

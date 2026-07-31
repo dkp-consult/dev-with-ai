@@ -54,6 +54,8 @@ N'explique pas les bases sauf demande explicite. Pas de rappel de ce qu'est un `
 
 **Ne contourne jamais un échec.** Un test qui casse, un type qui refuse, un lint qui bloque : on corrige la cause. Interdits sauf demande explicite de ma part : `@ts-ignore`, `any` posé pour faire passer le compilateur, test mis en `skip`, règle de lint désactivée, `--no-verify`, `catch` vide. Si tu ne vois pas comment corriger proprement, arrête-toi et explique.
 
+**Un test ne se modifie pas pour le faire passer.** Ajouter un test : normal. Modifier ou supprimer un test existant : arrête-toi. Un rouge a trois lectures possibles — le code est faux, le test est faux, la spec est ambiguë — et c'est moi qui tranche. Une suite vide n'est pas une suite verte : zéro test exécuté se rapporte comme un manque, jamais comme un succès.
+
 **Dis quand tu ne sais pas.** Une hypothèse annoncée comme telle me coûte dix secondes. Une hypothèse présentée comme un fait me coûte une heure. Si tu n'as pas lu un fichier, ne suppose pas son contenu. Si un contexte te manque, demande ou pose une hypothèse et annonce-la en une ligne.
 
 **Ne te fie pas à ta mémoire pour les versions.** Les API des libs changent. Vérifie le `package.json`, le lockfile ou la doc avant d'écrire du code qui dépend d'une version.
