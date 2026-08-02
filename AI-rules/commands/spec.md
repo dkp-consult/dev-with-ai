@@ -11,7 +11,17 @@ Rédige une spécification technique pour : "$ARGUMENTS"
 1. Lis le `CLAUDE.md` / `AGENTS.md` du projet s'il existe.
 2. Explore le code réel pour relever les conventions en vigueur : structure des dossiers, nommage, découpage des fichiers, style des tests. **La spec suit les conventions du projet, pas un modèle générique.**
    Si ton outil dispose d'un sous-agent d'exploration en lecture seule (`Explore` dans Claude Code), délègue-lui cette étape : vingt lectures de fichiers n'ont pas à occuper la fenêtre où la spec va s'écrire. Passe-lui le nom de la feature, sa description et la racine du projet — **son contexte démarre vide**, il ne voit rien de notre conversation.
-3. Repère les modules existants que la feature va toucher ou réutiliser.
+
+   Demande-lui une carte au format suivant, 40 lignes maximum. Sans contrat de sortie, tu récupères un résumé de fichiers lus, ce qui ne sert à rien pour écrire une spec :
+
+   - **Fichiers concernés** — chemin exact, une ligne de justification, du plus central au plus périphérique.
+   - **Conventions observées** — nommage, structure, découpage, gestion des erreurs, style des tests, **telles qu'observées dans le code** et non telles qu'attendues de la stack. Un fichier cité en exemple par convention.
+   - **Réutilisable** — modules, helpers et types existants que la feature devrait réutiliser plutôt que réécrire. Section à traiter de façon exhaustive : c'est elle qui évite la duplication.
+   - **Pièges** — couplages non évidents, effets de bord, code mort apparent mais utilisé, config qui contredit la doc.
+   - **Angles morts** — ce qu'il n'a pas pu vérifier et qui invaliderait sa carte.
+
+   Si tu explores toi-même faute de sous-agent, le format reste le même : c'est lui qui rend la carte exploitable.
+3. Repère les modules existants que la feature va toucher ou réutiliser — la section « Réutilisable » de la carte est ton point de départ.
 4. Vérifie si une spec existe déjà pour cette feature (`ls ai/specs/`).
 
 Si le nom de la feature ou son périmètre est ambigu, demande avant d'écrire. Une spec partie sur une mauvaise hypothèse coûte plus cher que la question.
