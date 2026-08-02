@@ -48,6 +48,10 @@ Le script est idempotent et refuse d'écraser un fichier existant non vide.
 | `verify` | Quand l'agent dit « c'est fini » | Lance les vraies gates du projet et rapporte la sortie brute |
 | `clean-commit` | Avant de commiter | Nettoyage, secrets, gates, message conventionnel |
 | `context` | Blocage ou changement d'outil | Point de situation dans `ai/context/`, pour reprendre à froid |
+| `issue-capture` | Une idée surgit pendant autre chose | Crée l'issue en vingt secondes et te renvoie au chantier |
+| `issue-start` | Début ou reprise d'un chantier | Écart entre le contrat et le code réel, plan de session, branche |
+| `issue-pause` | Fin de session | Poste le point de reprise sur l'issue |
+| `issue-finish` | Le chantier est terminé | Critères un par un, gates, découpage en commits, PR en draft |
 
 Dans Claude Code, une commande s'invoque avec `/nom`. Dans Codex, le skill
 correspondant s'invoque avec `$nom` ou depuis le sélecteur de skills.
@@ -88,9 +92,53 @@ Le workflow complet ne se déroule pas pour tout. C'est même la moitié du gain
 | Avant une mise en production | sous-agent `test-gap` |
 | Blocage ou passage Claude ↔ Codex | `/context` |
 | Code repris, hérité ou surprenant | `/explain` |
+| Chantier sur plusieurs sessions | `/issue-start` → travail → `/issue-pause` → … → `/issue-finish` |
 
 `/test-write` sur un composant d'affichage ou une page statique ne vaut pas son coût :
 la commande te le dira elle-même plutôt que de produire des tests de remplissage.
+
+## Le suivi de chantier
+
+Les commandes `issue-*` remplacent le fil de conversation par les issues GitHub comme mémoire
+longue. Le fil disparaît à la fermeture de la fenêtre ; l'issue est encore là dans trois semaines,
+et lisible depuis n'importe quel outil.
+
+```
+board « DKP - Works »   idée notée à la main, tous produits confondus
+  ↓ Convert to issue     l'élément du board devient l'issue #42 d'un dépôt
+/issue-start 42          contrat, écart contrat ↔ code réel, plan, branche, label next
+  ↓
+[ travail ]              /spec, /test-write, /verify, /clean-commit comme d'habitude
+  ↓
+/issue-pause             point de reprise posté sur l'issue, en fin de session
+  ↓                      (autant de fois que de sessions)
+/issue-finish            critères un par un, gates, commits, PR en draft
+```
+
+Hors de ce cycle, `/issue-capture` sort une idée de la tête sans quitter le chantier en cours :
+elle crée l'issue et te renvoie au travail, sans l'analyser ni l'ouvrir.
+
+**Aucune commande n'écrit sur le board.** Elles ne touchent qu'aux issues — corps, commentaires,
+labels — et à Git. Le board se remplit par le workflow *Auto-add to project* de GitHub, qui ajoute
+toute nouvelle issue des dépôts que tu sélectionnes. Deux raisons : ce que tu ranges à la main ne
+peut pas être défait par une session, et une issue créée depuis le web ou un autre poste arrive
+dans le board de la même façon. Un élément déjà présent n'est jamais dupliqué.
+
+À régler une fois dans l'UI du board, il n'y a pas d'API pour ça :
+
+- workflow *Auto-add to project*, un dépôt par ligne — vérifie la limite de dépôts, elle a bougé
+  selon les versions de Projects ;
+- workflows *Item added → Status Todo* et *Item closed → Status Done* ;
+- vue **Next** filtrée sur `label:next`, vue **Inbox** filtrée sur `label:inbox`.
+
+Deux labels portent l'état, et les commandes les gèrent seules : `inbox` marque une idée sans
+contrat, posé par `/issue-capture` ; `next` marque le chantier courant du dépôt, posé par
+`/issue-start` — un seul à la fois, retiré par `/issue-finish`. Rien à créer à la main, les
+commandes créent le label s'il manque.
+
+Les numéros d'issue sont propres à chaque dépôt : il y aura un #42 dans plusieurs de tes projets.
+`/issue-start 42` travaille sur le dépôt courant, donc lance-la depuis le bon répertoire. Le board
+affiche le dépôt à côté de chaque élément.
 
 ## Les deux niveaux de règles
 
@@ -124,9 +172,11 @@ lisant l'implémentation encode le comportement actuel, bugs compris. Il produit
 verts qui certifient le bug. Sans spec, `test-designer` le dit et marque ses cas
 `[DESCRIPTIF]` — filet de régression, pas vérification.
 
-## Le hook
+## Les hooks
 
-`hooks/protect-tests.sh` empêche l'agent de modifier, réécrire ou supprimer un fichier de
+### `protect-tests.sh`
+
+Empêche l'agent de modifier, réécrire ou supprimer un fichier de
 test existant. Créer un nouveau test reste autorisé.
 
 Mis en boucle sur « fais passer les tests », un agent finit statistiquement par affaiblir
@@ -150,6 +200,21 @@ lever sa propre contrainte.
 coller, et la commande pour vérifier que le hook bloque réellement. Un hook de gating qui
 semble marcher sans rien bloquer est le pire des deux mondes. Il dépend de `jq` ; sans lui
 il se désactive en le signalant.
+
+### `session-start.sh`
+
+Hook `SessionStart`, lecture seule. Quand la branche courante suit la convention
+`<type>/<numero>-<slug>`, il injecte au démarrage les faits bruts du chantier : le contrat de
+l'issue, le dernier checkpoint, l'état du worktree, la PR liée s'il y en a une. À défaut de
+branche conventionnelle, il retombe sur l'issue portant le label `next`.
+
+Il n'analyse rien — c'est le travail de `/issue-start`. Il évite seulement de recommencer une
+session en redécouvrant un sujet déjà cadré, ou pire, en rediscutant une décision déjà prise.
+
+Hors convention, hors dépôt Git, sans `gh` ou sans `jq`, il sort en 0 sans rien afficher. Compte
+une seconde environ au démarrage d'une session dans un dépôt GitHub : il interroge l'API. Comme
+`protect-tests.sh`, `install.sh` le pose mais te laisse coller la déclaration dans
+`settings.json`.
 
 ## Ajouter une commande
 

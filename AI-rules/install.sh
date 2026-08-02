@@ -148,8 +148,19 @@ settings="$HOME/.claude/settings.json"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo
-  echo "ATTENTION : jq est absent, le hook protect-tests sera inactif."
+  echo "ATTENTION : jq est absent, les hooks protect-tests et session-start seront inactifs."
   echo "            brew install jq"
+fi
+
+# Les commandes issue-* pilotent GitHub par gh. Sans lui, elles ne tournent pas.
+if ! command -v gh >/dev/null 2>&1; then
+  echo
+  echo "ATTENTION : gh est absent, les commandes issue-* ne fonctionneront pas."
+  echo "            brew install gh && gh auth login"
+elif ! gh auth status >/dev/null 2>&1; then
+  echo
+  echo "ATTENTION : gh n'est pas authentifié, les commandes issue-* échoueront."
+  echo "            gh auth login"
 fi
 
 if [ -f "$settings" ] && grep -q 'protect-tests.sh' "$settings"; then
@@ -177,6 +188,30 @@ JSON
   echo
   echo "  (crée x.test.ts avant : le hook autorise la création, bloque la modification)"
   echo "  Attendu : message de blocage et exit=2."
+fi
+
+if [ -f "$settings" ] && grep -q 'session-start.sh' "$settings"; then
+  echo
+  echo "OK hook session-start déjà déclaré dans $settings"
+else
+  echo
+  echo "À FAIRE — le hook session-start est posé mais pas déclaré."
+  echo "Ajoute cette entrée au tableau hooks.SessionStart de $settings :"
+  echo
+  cat <<'JSON'
+    {
+      "hooks": [
+        { "type": "command", "command": "$HOME/.claude/hooks/session-start.sh", "timeout": 15 }
+      ]
+    }
+JSON
+  echo
+  echo "Vérifie-le depuis un worktree dont la branche suit <type>/<numero>-<slug> :"
+  echo
+  echo "  ~/.claude/hooks/session-start.sh ; echo \"exit=\$?\""
+  echo
+  echo "  Attendu : le contrat de l'issue et le dernier checkpoint, exit=0."
+  echo "  Hors convention de branche, il sort en 0 sans rien afficher — c'est voulu."
 fi
 
 echo
