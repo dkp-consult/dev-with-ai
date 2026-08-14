@@ -163,9 +163,9 @@ elif ! gh auth status >/dev/null 2>&1; then
   echo "            gh auth login"
 fi
 
-if [ -f "$settings" ] && grep -q 'protect-tests.sh' "$settings"; then
+if [ -f "$settings" ] && grep -q 'scope-guard.sh' "$settings"; then
   echo
-  echo "OK hook protect-tests déjà déclaré dans $settings"
+  echo "OK hook scope-guard déjà déclaré dans $settings"
 else
   echo
   echo "À FAIRE — le hook est posé mais pas déclaré."
@@ -175,19 +175,22 @@ else
     {
       "matcher": "Edit|Write|NotebookEdit|Bash",
       "hooks": [
-        { "type": "command", "command": "$HOME/.claude/hooks/protect-tests.sh" }
+        { "type": "command", "command": "$HOME/.claude/hooks/scope-guard.sh" }
       ]
     }
 JSON
   echo
+  echo "Une seule déclaration suffit : scope-guard dispatche sur agent_type."
+  echo "En global, un agent créé plus tard sans déclaration tombe dans le cas"
+  echo "par défaut, donc protégé. Le frontmatter fait l'inverse."
+  echo
   echo "Puis vérifie qu'il bloque réellement — un hook qui laisse tout passer"
   echo "est pire que pas de hook :"
   echo
-  echo '  printf %s "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$PWD/x.test.ts\"}}" \'
-  echo '    | ~/.claude/hooks/protect-tests.sh ; echo "exit=$?"'
+  echo '  printf %s "{\"agent_type\":\"dev\",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"a.test.ts\"}}" \'
+  echo '    | ~/.claude/hooks/scope-guard.sh ; echo "exit=$?"'
   echo
-  echo "  (crée x.test.ts avant : le hook autorise la création, bloque la modification)"
-  echo "  Attendu : message de blocage et exit=2."
+  echo "  Attendu : blocage hors périmètre et exit=2."
 fi
 
 if [ -f "$settings" ] && grep -q 'session-start.sh' "$settings"; then
