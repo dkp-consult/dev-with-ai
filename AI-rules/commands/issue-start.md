@@ -34,6 +34,23 @@ gh pr list --search "<N>" --state all --json number,state,isDraft,headRefName
 git log --oneline --all --grep "#<N>" -20
 ```
 
+## 2 bis. Vérifier les dépendances
+
+Un chantier peut en attendre un autre. Avant d'aller plus loin, cherche ce qui bloque :
+
+- dans le corps de l'issue, une mention `Bloqué par #<N>` ou une sous-issue non close ;
+- dans `ai/cdd.md` si le projet en a un, la ligne de l'étape correspondante et sa mention `BLOQUÉ` ou `dépend de` ;
+- l'état réel des issues citées : `gh issue view <N> --json state`.
+
+```
+gh issue view <N> --json body,title
+gh issue list --search "linked:<N>" --state open --json number,title
+```
+
+**Si un prérequis est encore ouvert, arrête-toi** et dis lequel. Ne démarre pas un chantier dont la base n'existe pas : le travail sera à refaire quand le prérequis atterrira, et la relecture mélangera les deux sujets.
+
+Si l'issue porte le label `blocked` et que ses prérequis sont désormais clos, propose de le retirer.
+
 ## 3. Vérifier le contrat
 
 Si l'issue n'a pas de section « Fait quand » avec des critères **vérifiables** (pas « ça marche »), c'est le moment de l'écrire — pas plus tard. Propose-moi :
