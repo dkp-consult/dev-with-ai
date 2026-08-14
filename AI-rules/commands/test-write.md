@@ -8,7 +8,7 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Task, Agent, Bash(ls:*), Bash(npm 
 
 ## 1. Conception des cas
 
-**Si ton outil dispose de sous-agents**, délègue cette étape au sous-agent `test-designer`. Passe-lui explicitement dans le prompt d'invocation :
+**Si ton outil dispose de sous-agents**, délègue toute la commande au sous-agent `tester` : la conception des cas est sa phase 1. Passe-lui explicitement dans le prompt d'invocation :
 
 - le fichier ou module cible, chemin exact ;
 - le chemin de la spec si je t'en ai donné un ;
@@ -73,4 +73,4 @@ Le commit passe par `/clean-commit`. Ne stage rien, ne commit rien.
 
 Si une étape n'a pas pu être menée à bien, dis-le au lieu de le passer sous silence.
 
-<!-- fallback:agents/test-designer.md -->
+<!-- fallback:methods/test-design.md -->
