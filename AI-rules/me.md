@@ -134,4 +134,8 @@ Quand ça touche au métier plutôt qu'au code : contexte belge (TVA, facturatio
 
 ## Traçabilité
 
-Certains de mes projets ont un dossier `ai/` (specs, points de situation). Quand il existe, écris-y les artefacts que je demande explicitement. Vérifie qu'il figure dans le `.gitignore` ; s'il n'y est pas, signale-le plutôt que de l'ajouter toi-même.
+Certains de mes projets ont un dossier `ai/` (cahier des charges, cahier de dev, specs, rapports d'agents, points de situation). Quand il existe, écris-y les artefacts que je demande explicitement.
+
+**`ai/` est versionné**, au même titre que le code : il porte les contrats sur lesquels le travail est jugé et doit suivre le dépôt d'une machine à l'autre. S'il figure dans un `.gitignore`, signale-le — c'est une ligne à retirer.
+
+Conséquence directe : **tout ce qui s'écrit dans `ai/` est destiné à partir dans un commit.** Masque-y systématiquement les secrets. Remplace par `[REDACTED]` toute clé d'API, token, mot de passe, chaîne de connexion, en-tête d'authentification ou identifiant client qui apparaîtrait dans une trace d'erreur ou un extrait de code. Garde la structure de l'erreur, retire la valeur. Un secret dans un fichier local se supprime ; un secret dans l'historique Git ne se supprime pas.

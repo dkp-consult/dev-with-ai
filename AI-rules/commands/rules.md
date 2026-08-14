@@ -73,7 +73,7 @@ Sur `STOP`, n'exécute rien : montre-moi le contenu existant de `AGENTS.md` et d
 
 N'utilise jamais `ln -sf` ici : le `-f` supprime la cible sans avertissement, y compris un fichier de règles écrit à la main.
 
-Si le projet utilise les artefacts de traçabilité, ajoute `ai/` au `.gitignore` et dis-moi ce que tu y as ajouté.
+Le dossier `ai/` est **versionné** : cahier des charges, cahier de dev, specs et rapports d'agents suivent le code. S'il figure dans le `.gitignore`, signale-le — c'est une ligne à retirer, pas à ajouter.
 
 ## Règles
 

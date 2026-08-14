@@ -5,5 +5,5 @@
 .idea/
 .vscode/
 
-# Artefacts de traçabilité générés dans les projets
-ai/
+# ai/ est VERSIONNÉ : cahier des charges, cahier de dev, specs et rapports
+# d'agents suivent le code. Ne pas l'ignorer.
