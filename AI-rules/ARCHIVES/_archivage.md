@@ -21,3 +21,13 @@ Archivé le **29 juillet 2026**, lors du passage d'OpenCode à Claude Code + Cod
 - **Règles et commandes mélangées** dans `agents.md`, ce qui empêchait d'utiliser la partie « règles » comme configuration globale.
 
 Rien n'est perdu : l'historique git conserve tout, et `git log --follow <fichier>` suit les fichiers à travers le déplacement.
+
+---
+
+## Deuxième archivage — 4 septembre 2026
+
+Bascule du harnais vers le framework AIDD, installé en plugins Claude Code.
+L'installation globale a été retirée ; `AI-rules/` reste versionné et intact.
+
+Instantané de l'état vécu avant retrait, et procédure de réinstallation
+complète : [`2026-09-04-bascule-aidd/`](2026-09-04-bascule-aidd/README.md).
