@@ -44,6 +44,16 @@ SKILL_DIRS=(
 
 CLAUDE_AGENTS="$HOME/.claude/agents"
 CODEX_AGENTS="$HOME/.codex/agents"
+# Kimi découvre les profils d'agent dans ce répertoire et lit du Markdown à
+# frontmatter — le format produit pour Claude convient tel quel. Vérifié en
+# lançant « kimi --agent aidd-dev-executor » : le rôle défini dans le .md est
+# bien celui que Kimi adopte.
+#
+# AGY n'a pas d'équivalent : « agy --agent <nom> » ignore les profils déposés
+# dans ~/.gemini/config/agents, ~/.gemini/agents et ~/.gemini/config/subagents,
+# et « agy agents » ne liste rien. Ses sous-agents semblent internes plutôt que
+# déclarés par fichier. Rien à déployer tant que ça n'a pas changé.
+KIMI_AGENTS="$HOME/.kimi-code/agents"
 # Le hook est partagé par Claude Code et Codex. Le loger sous ~/.claude/ ferait
 # pointer la configuration de Codex dans le répertoire d'un autre outil ; il a
 # donc sa propre racine, neutre, comme le clone source.
@@ -214,8 +224,14 @@ say
 
 # ── Agents ────────────────────────────────────────────────────────
 #
-# Seuls Claude Code et Codex ont des sous-agents, et pas dans le même format.
-# Kimi et AGY n'en reçoivent pas : leurs skills restent autonomes.
+# Trois destinations, deux formats. Claude Code et Kimi lisent le même Markdown
+# à frontmatter, Codex veut du TOML.
+#
+# Aucune skill n'appelle un agent par son nom (« aidd-dev-executor » n'apparaît
+# nulle part dans les 47) : la délégation est écrite en termes de rôle. Un outil
+# sans agent ne casse donc pas, il fait le travail dans son contexte principal —
+# ce qui coûte l'isolation, pas les étapes. C'est ce qui rend AGY tenable en
+# l'état, et ce qui rend le déploiement vers Kimi utile plutôt qu'obligatoire.
 
 install_agents() {
   local src="$1" dest="$2" ext="$3" name count=0
@@ -246,6 +262,7 @@ install_agents() {
 say "Agents"
 install_agents "$SRC_AGENTS_MD"   "$CLAUDE_AGENTS" md
 install_agents "$SRC_AGENTS_TOML" "$CODEX_AGENTS"  toml
+install_agents "$SRC_AGENTS_MD"   "$KIMI_AGENTS"   md
 say
 
 # ── Hook ──────────────────────────────────────────────────────────
@@ -332,8 +349,9 @@ say
 say "─────────────────────────────────────────────"
 say "AIDD $VERSION déployé."
 say
-say "Kimi et AGY reçoivent les skills, pas les agents ni le hook :"
-say "la synchronisation de la mémoire projet ne tourne que dans Claude Code et Codex."
+say "Claude Code, Codex et Kimi reçoivent les agents ; AGY non (pas de format cible)."
+say "Le hook reste limité à Claude Code et Codex : la mémoire projet ne se"
+say "synchronise que dans ces deux-là."
 say
 
 if [ "$TODO_COUNT" -gt 0 ]; then

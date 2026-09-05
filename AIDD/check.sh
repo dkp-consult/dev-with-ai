@@ -101,8 +101,9 @@ check_agents() {
   fi
 }
 
-check_agents "$HOME/.claude/agents" md
-check_agents "$HOME/.codex/agents"  toml
+check_agents "$HOME/.claude/agents"    md
+check_agents "$HOME/.codex/agents"     toml
+check_agents "$HOME/.kimi-code/agents" md
 
 # ── Hook ──────────────────────────────────────────────────────────
 #
