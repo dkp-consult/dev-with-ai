@@ -217,6 +217,42 @@ JSON
   echo "  Hors convention de branche, il sort en 0 sans rien afficher — c'est voulu."
 fi
 
+# --- Dérive de la politique de permissions -------------------------------
+# settings.json n'est PAS un lien : il porte aussi ce qui n'est pas à moi
+# (vibe-island, thème, répertoires supplémentaires), et une fusion à l'aveugle
+# sur un fichier de configuration personnel se paie cher — même raison que
+# pour la déclaration des hooks plus haut.
+#
+# Ce qui n'a de copie nulle part, c'est le bloc `permissions` : la liste allow,
+# la liste deny. On le compare, on le signale, on n'écrit jamais.
+# Le fichier complet reste versionné à côté, comme point de restauration.
+reference="$REPO/settings.json"
+
+if [ -f "$settings" ] && [ -f "$reference" ] && command -v jq >/dev/null 2>&1; then
+  live_perms="$(jq -S '.permissions // {}' "$settings" 2>/dev/null || echo 'null')"
+  ref_perms="$(jq -S '.permissions // {}' "$reference" 2>/dev/null || echo 'null')"
+
+  if [ "$live_perms" = "$ref_perms" ]; then
+    echo
+    echo "OK politique de permissions identique à $reference"
+  else
+    echo
+    echo "ATTENTION — la politique de permissions a dérivé."
+    echo "  vécu     : $settings"
+    echo "  versionné: $reference"
+    echo
+    diff <(printf '%s\n' "$ref_perms") <(printf '%s\n' "$live_perms") \
+      | sed 's/^/  /' || true
+    echo
+    echo "  < versionné    > vécu"
+    echo
+    echo "Rien n'a été modifié. Choisis un sens :"
+    echo "  adopter le vécu     : jq -S . \"$settings\" > \"$reference\""
+    echo "  restaurer le dépôt  : édite \"$settings\" à la main, ou repars de"
+    echo "                        \"$reference\" si tu acceptes d'écraser le reste."
+  fi
+fi
+
 echo
 echo "Installation terminée."
 echo "Claude Code : redémarre-le — le watcher ne voit pas un répertoire créé"

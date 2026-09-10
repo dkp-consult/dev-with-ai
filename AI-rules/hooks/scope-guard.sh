@@ -115,7 +115,9 @@ EOF
   exit 2
 }
 
-matches() { printf '%s' "$1" | grep -Eq "$2"; }
+# `--` avant le motif : sans lui, un motif commençant par `-` (« --force »)
+# est lu par grep comme une option et le hook meurt en usage error.
+matches() { printf '%s' "$1" | grep -Eq -- "$2"; }
 
 # --- Le verrou ne se lève jamais depuis un outil -------------------------
 case "$CMD" in
@@ -145,6 +147,43 @@ esac
 [ "$KIND" = cmd  ] && [ -z "$CMD"  ] && exit 0
 
 # =========================================================================
+#  PLANCHER PUSH — vaut pour TOUS les modes, agent comme session directe.
+#
+#  Le `deny` de settings.json raisonne sur un préfixe : « git push --force »
+#  n'attrape pas « git push origin main --force ». Ici on lit la commande
+#  entière. Et surtout, un hook s'exécute quel que soit le mode de permission,
+#  y compris sous --dangerously-skip-permissions : c'est ce qui reste quand
+#  un run autonome (AIDD async, poll local) a désactivé les permissions.
+#
+#  --force-with-lease n'est volontairement pas visé : il refuse d'écraser
+#  un commit qu'on n'a pas vu.
+# =========================================================================
+# On ne vise qu'une INVOCATION : `git push` en début de ligne ou après un
+# séparateur de commandes. Une commande qui *cite* git push — un grep sur la
+# doc, un script de test — n'est pas un push. Même raisonnement que pour les
+# cibles d'écriture plus bas : on lit ce qui s'exécute, pas ce qui se mentionne.
+GIT_PUSH_RE='(^|[;&|(][[:space:]]*)git[[:space:]]+push([[:space:]]|$)'
+
+if [ "$KIND" = cmd ] && matches "$CMD" "$GIT_PUSH_RE"; then
+  PUSH_LINE=$(printf '%s' "$CMD" | grep -E -- "$GIT_PUSH_RE" | head -5)
+  if matches "$PUSH_LINE" '--force([[:space:]]|$)' || matches "$PUSH_LINE" '[[:space:]]-f([[:space:]]|$)'; then
+    refuse "push forcé : $CMD" \
+      "  Réécrire l'historique d'une branche déjà poussée ne s'annule pas," \
+      "  et ce que les autres ont tiré entre-temps ne se récupère pas." \
+      "" \
+      "  Si l'intention est de corriger la dernière poussée sans écraser le" \
+      "  travail d'un autre : git push --force-with-lease, que ce hook laisse" \
+      "  passer. Sinon, arrête-toi et explique ce que tu cherches à faire."
+  fi
+  if matches "$PUSH_LINE" 'git[[:space:]]+push[^;|&]*[[:space:]](main|master)([[:space:]]|$)'; then
+    refuse "push direct sur une branche d'intégration : $CMD" \
+      "  main se remplit par pull request, jamais en direct." \
+      "" \
+      "  Pousse ta branche de travail et ouvre la PR."
+  fi
+fi
+
+# =========================================================================
 #  MODE main — comportement historique de protect-tests.sh
 # =========================================================================
 if [ "$MODE" = main ]; then
@@ -160,26 +199,68 @@ if [ "$MODE" = main ]; then
   fi
 
   matches "$CMD" "$TEST_RE" || exit 0
-  if matches "$CMD" ">>?[[:space:]]*[^[:space:]]*($TEST_RE)"; then
-    refuse_test "écriture par redirection vers un fichier de test :
 
-  $CMD"
-  fi
+  # On raisonne sur la CIBLE d'une écriture, jamais sur le texte complet de la
+  # commande. Un document qui *parle* de tests n'écrit pas dans un test : le
+  # chevron fermant de <module> passait pour une redirection.
+  # Un `>` ne compte que précédé d'un espace ou d'un début de ligne.
+  write_targets() {
+    printf '%s' "$CMD" \
+      | grep -oE '(^|[[:space:]])>>?[[:space:]]*[^[:space:];|&<>]+' \
+      | grep -oE '[^[:space:]<>]+$'
+    printf '%s' "$CMD" \
+      | grep -oE '(^|[;&|][[:space:]]*|[[:space:]])(rm|mv|cp|truncate|dd|tee)[[:space:]]+[^;|&]*' \
+      | tr '[:space:]' '\n' \
+      | grep -vE '^(rm|mv|cp|truncate|dd|tee|-.*)$'
+  }
+
+  # Chemins cités n'importe où : pour les écritures qui ne passent pas par une
+  # redirection shell (heredoc python, node -e), où la cible est dans le code.
+  cited_paths() {
+    printf '%s' "$CMD" | grep -oE "[^[:space:]'\"\`(),]+" | grep -E "$TEST_RE"
+  }
+
+  # Un test qui n'existe pas encore n'est pas protégé : en créer reste autorisé,
+  # exactement comme pour Write et Edit plus haut.
+  existing_test() {
+    case "$1" in /dev/null|/tmp/*|/private/tmp/*) return 1 ;; esac
+    matches "$1" "$TEST_RE" || return 1
+    [ -f "$1" ] || return 1
+    return 0
+  }
+
+  refuse_first_existing() {
+    local reason="$1"; shift
+    local p
+    for p in "$@"; do
+      if existing_test "$p"; then
+        refuse_test "$reason :
+
+  $p"
+      fi
+    done
+  }
+
+  # 1. Redirection, déplacement, suppression, troncature.
+  refuse_first_existing "écriture vers un fichier de test existant" $(write_targets)
+
+  # 2. Édition en place déclarée : sed -i, perl -i.
   if matches "$CMD" '(^|[[:space:]])(sed|perl|ruby|python3?)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-i'; then
-    refuse_test "édition en place d'un fichier de test :
-
-  $CMD"
+    refuse_first_existing "édition en place d'un fichier de test existant" $(cited_paths)
   fi
-  if matches "$CMD" '(^|[;&|][[:space:]]*|[[:space:]])(rm|mv|cp|truncate|dd|tee)[[:space:]]'; then
-    refuse_test "suppression ou déplacement d'un fichier de test :
 
-  $CMD"
+  # 3. Interpréteur portant du code en ligne (heredoc, -e, -c). C'est par là
+  #    qu'un script réécrivait un test sans jamais employer -i.
+  if matches "$CMD" '(^|[[:space:]])(python3?|node|perl|ruby|deno|bun)([[:space:]]+-[^[:space:]]+)*[[:space:]]+(-e|-c|-)([[:space:]]|$)' \
+     || matches "$CMD" '(^|[[:space:]])(python3?|node|perl|ruby|deno|bun)[[:space:]]+[^;|&]*<<'; then
+    refuse_first_existing "réécriture d'un test existant par un interpréteur" $(cited_paths)
   fi
+
+  # 4. Restauration git portant sur un test existant.
   if matches "$CMD" 'git[[:space:]]+(checkout|restore|clean)'; then
-    refuse_test "restauration git portant sur un fichier de test :
-
-  $CMD"
+    refuse_first_existing "restauration git d'un fichier de test existant" $(cited_paths)
   fi
+
   exit 0
 fi
 
