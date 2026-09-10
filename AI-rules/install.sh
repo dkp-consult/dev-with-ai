@@ -4,11 +4,57 @@
 # ainsi que les briques propres à Claude Code : sous-agents et hooks.
 # Idempotent : relançable sans risque.
 #
-#   ./install.sh
+#   ./install.sh [--force]
+#
+# Refuse de s'installer par-dessus AIDD, sauf --force. Voir la garde plus bas.
 
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force) FORCE=1; shift ;;
+    -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "argument inconnu : $1" >&2; exit 1 ;;
+  esac
+done
+
+# --- Garde : ce harnais et AIDD ne cohabitent pas -------------------------
+#
+# Les deux déploient des surfaces globales qui se recouvrent : quinze des
+# dix-huit commandes d'ici doublonnent un skill AIDD. Or un skill se déclenche
+# aussi sur sa description, pas seulement à l'invocation — deux candidats pour
+# « écris la spec », c'est une sélection non déterministe qu'on ne voit pas
+# passer. C'est ce qui avait motivé la bascule du 4 septembre, et c'est ce
+# qu'une relance distraite de ce script réactive d'un coup.
+#
+# La garde ne regarde pas le nom de la branche courante : une branche ne dit
+# rien de ce qui est réellement déployé dans ~/.claude. Elle lit l'état vécu.
+AIDD_MARKER="$HOME/.claude/skills"
+
+aidd_bundles() {
+  find "$AIDD_MARKER" -maxdepth 1 -name 'aidd-*' -type d 2>/dev/null | wc -l | tr -d ' '
+}
+
+if [ "$FORCE" -eq 0 ] && [ "$(aidd_bundles)" -gt 0 ]; then
+  cat >&2 <<MSG
+REFUS — AIDD est installé globalement ($(aidd_bundles) skills dans ~/.claude/skills).
+
+Ce script rétablirait les liens, les commandes et les skills Codex de ce
+harnais par-dessus. Quinze des dix-huit commandes doublonnent un skill AIDD :
+la sélection entre les deux devient non déterministe, et silencieuse.
+
+Pour repasser à ce harnais, désinstaller AIDD d'abord. La marche à suivre et
+l'instantané d'avant bascule sont dans :
+  AI-rules/ARCHIVES/2026-09-04-bascule-aidd/README.md
+
+Si tu sais ce que tu fais et veux vraiment les deux en même temps :
+  ./install.sh --force
+MSG
+  exit 1
+fi
 
 link() {
   local src="$1" dest="$2"
