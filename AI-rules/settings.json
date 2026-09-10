@@ -47,6 +47,14 @@
           }
         ],
         "matcher": "*"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/dkp/.aidd/hooks/aidd-telemetry/journal.cjs tool-used"
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -73,8 +81,8 @@
       {
         "hooks": [
           {
-            "command": "$HOME/.claude/hooks/scope-guard.sh",
-            "type": "command"
+            "type": "command",
+            "command": "$HOME/.claude/hooks/scope-guard.sh"
           }
         ],
         "matcher": "Edit|Write|NotebookEdit|Bash"
@@ -103,9 +111,25 @@
       {
         "hooks": [
           {
+            "type": "command",
+            "command": "node /Users/dkp/.aidd/hooks/update_memory.js"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/dkp/.aidd/hooks/aidd-telemetry/journal.cjs session-start"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/session-start.sh",
-            "timeout": 15,
-            "type": "command"
+            "timeout": 15
           }
         ]
       }
@@ -116,6 +140,14 @@
           {
             "command": "/bin/sh -c '[ -x \"$HOME/.vibe-island/bin/vibe-island-bridge\" ] && \"$HOME/.vibe-island/bin/vibe-island-bridge\" --source claude; exit 0'",
             "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/dkp/.aidd/hooks/aidd-telemetry/journal.cjs turn-end"
           }
         ]
       }
@@ -171,6 +203,12 @@
       }
     ]
   },
+  "statusLine": {
+    "command": "/Users/dkp/.vibe-island/bin/vibe-island-statusline",
+    "type": "command"
+  },
+  "theme": "dark-daltonized",
+  "tui": "fullscreen",
   "permissions": {
     "additionalDirectories": [
       "/Users/dkp/dev/aidd-sandbox-finance"
@@ -226,11 +264,5 @@
       "Bash(cat .env:*)",
       "Bash(cat ./.env:*)"
     ]
-  },
-  "statusLine": {
-    "command": "/Users/dkp/.vibe-island/bin/vibe-island-statusline",
-    "type": "command"
-  },
-  "theme": "dark-daltonized",
-  "tui": "fullscreen"
+  }
 }
