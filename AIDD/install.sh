@@ -13,13 +13,15 @@
 #
 # Ce que le script écrit (et rien d'autre) :
 #   - les skills et agents dont le nom commence par « aidd- »
-#   - le hook update_memory.js
+#   - les hooks : update_memory.js et le bundle aidd-telemetry/
 #
 # Ce que le script ne touche JAMAIS :
-#   - ~/.claude/settings.json et ~/.codex/hooks.json. Ils portent déjà d'autres
-#     hooks (vibe-island, scope-guard, session-start). Une fusion automatique
-#     sur un fichier de configuration personnel se paie cher — même raison que
-#     dans AI-rules/install.sh. Le script vérifie et affiche le bloc à coller.
+#   - les configurations des CLI : ~/.claude/settings.json, ~/.codex/hooks.json,
+#     ~/.gemini/settings.json, ~/.kimi-code/config.toml. Elles portent déjà
+#     d'autres hooks (vibe-island, scope-guard, session-start). Une fusion
+#     automatique sur un fichier de configuration personnel se paie cher — même
+#     raison que dans AI-rules/install.sh. Le script vérifie et affiche le bloc
+#     à coller.
 
 set -euo pipefail
 
@@ -59,10 +61,18 @@ KIMI_AGENTS="$HOME/.kimi-code/agents"
 # donc sa propre racine, neutre, comme le clone source.
 HOOK_DIR="$HOME/.aidd/hooks"
 HOOK_PATH="$HOOK_DIR/update_memory.js"
+# journal.cjs charge hooks/lib/ : c'est un bundle, pas un fichier. Il garde donc
+# son propre répertoire, nommé comme le plugin qui le livre.
+TELEMETRY_DIR="$HOOK_DIR/aidd-telemetry"
+TELEMETRY_HOOK="$TELEMETRY_DIR/journal.cjs"
 
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 CODEX_HOOKS="$HOME/.codex/hooks.json"
 CODEX_CONFIG="$HOME/.codex/config.toml"
+# Kimi déclare ses hooks en TOML à plat ([[hooks]] / event / command), AGY dans
+# un settings.json de forme identique à celui de Claude Code.
+KIMI_CONFIG="$HOME/.kimi-code/config.toml"
+AGY_SETTINGS="$HOME/.gemini/settings.json"
 
 AIDD_CLI="@ai-driven-dev/cli@latest"
 
@@ -71,6 +81,7 @@ AIDD_CLI="@ai-driven-dev/cli@latest"
 TODO_COUNT=0
 
 say()  { printf '%s\n' "$*"; }
+short(){ printf '%s' "$1" | sed "s|^$HOME|~|"; }
 ok()   { printf 'OK %s\n' "$*"; }
 warn() { printf 'ATTENTION : %s\n' "$*" >&2; }
 todo() { TODO_COUNT=$((TODO_COUNT + 1)); printf '\nÀ FAIRE — %s\n' "$*"; }
@@ -102,7 +113,7 @@ while [ $# -gt 0 ]; do
     --pull)    DO_PULL=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help)
-      sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) die "argument inconnu : $1" ;;
   esac
@@ -152,8 +163,13 @@ build() {
   say "Construction de la cible $target..."
   # Le traducteur refuse de construire si --out n'existe pas encore.
   mkdir -p "$STAGING/$target"
-  npx --yes "$AIDD_CLI" framework build \
-    --source "$SOURCE" --target "$target" --flat --out "$STAGING/$target" \
+  # « framework build » a disparu de la CLI 5.x : la conversion sans trace
+  # s'appelle maintenant « translate », et « framework » ne garde que le cycle
+  # de vie (install/remove/update). Même arborescence produite, options
+  # renommées : --source devient positionnel, --target devient --to, --flat
+  # devient --as flat.
+  npx --yes "$AIDD_CLI" translate "$SOURCE" \
+    --to "$target" --as flat --out "$STAGING/$target" \
     | sed 's/^/   /'
 }
 
@@ -165,9 +181,11 @@ SRC_SKILLS="$STAGING/claude/.claude/skills"
 SRC_AGENTS_MD="$STAGING/claude/.claude/agents"
 SRC_AGENTS_TOML="$STAGING/codex/.codex/agents"
 SRC_HOOK="$STAGING/claude/.claude/hooks/aidd-context/update_memory.js"
+SRC_TELEMETRY="$STAGING/claude/.claude/hooks/aidd-telemetry"
 
 [ -d "$SRC_SKILLS" ] || die "la construction n'a produit aucune skill."
 [ -f "$SRC_HOOK" ]   || die "la construction n'a produit aucun hook."
+[ -d "$SRC_TELEMETRY" ] || die "la construction n'a produit aucun hook de télémétrie."
 
 # ── Skills ────────────────────────────────────────────────────────
 #
@@ -265,18 +283,33 @@ install_agents "$SRC_AGENTS_TOML" "$CODEX_AGENTS"  toml
 install_agents "$SRC_AGENTS_MD"   "$KIMI_AGENTS"   md
 say
 
-# ── Hook ──────────────────────────────────────────────────────────
+# ── Hooks ─────────────────────────────────────────────────────────
 #
 # update_memory.js remplit le bloc mémoire de CLAUDE.md / AGENTS.md à partir de
 # aidd_docs/memory/. Il se cale sur $CLAUDE_PROJECT_DIR sinon sur le répertoire
 # courant, et sort en 0 sans rien faire si aidd_docs/ est absent — donc inerte
 # dans tous les projets qui n'utilisent pas AIDD. C'est ce qui rend l'install
 # globale possible : le script vit à un endroit fixe, il agit sur le projet ouvert.
+#
+# journal.cjs (plugin aidd-telemetry, apparu en v5.10.0) enregistre ce qu'une
+# session consomme. Deux différences avec le précédent :
+#   - il charge hooks/lib/, donc c'est un répertoire entier qui se déplace ;
+#   - il veut trois événements, pas un (SessionStart, Stop, PostToolUse), et
+#     reçoit son nom d'événement en argument.
+# Lui aussi est inerte par défaut : rien n'est mesuré tant que le projet ouvert
+# ne porte pas un .aidd/config.json avec telemetry.enabled = true, et
+# AIDD_TELEMETRY=0 dans l'environnement le neutralise partout, sans condition.
 
-say "Hook"
+say "Hooks"
 run mkdir -p "$HOOK_DIR"
 run cp "$SRC_HOOK" "$HOOK_PATH"
-printf '   %s\n' "$(printf '%s' "$HOOK_PATH" | sed "s|^$HOME|~|")"
+printf '   %s\n' "$(short "$HOOK_PATH")"
+
+# Remplacé et non fusionné : un fichier de lib/ retiré en amont doit disparaître
+# ici aussi, sinon journal.cjs continue de charger du code mort.
+apply rm -rf "$TELEMETRY_DIR"
+apply cp -R "$SRC_TELEMETRY" "$TELEMETRY_DIR"
+printf '   %s\n' "$(short "$TELEMETRY_DIR")"
 say
 
 # ── Déclarations ──────────────────────────────────────────────────
@@ -286,38 +319,45 @@ say
 # la déclaration existe, et le chemin qu'elle contient pointe sur un fichier
 # réel. Le second cas attrape la déclaration devenue obsolète.
 
+# JSON autorise « \/ » pour une barre oblique, et ~/.codex/hooks.json est écrit
+# dans ce dialecte. Chercher le chemin tel quel y échoue sur une déclaration
+# pourtant valide : on retire les antislashs avant de comparer.
 declared_in() {
-  local file="$1"
+  local file="$1" needle="$2"
   [ -f "$file" ] || return 1
-  grep -qF "$HOOK_PATH" "$file"
+  tr -d '\\' < "$file" | grep -qF "$needle"
 }
 
+# $3 est le chemin attendu, $4 le motif qui reconnaît une déclaration du même
+# hook pointant ailleurs — c'est ce qui distingue « jamais déclaré » de
+# « déclaré, mais sur un chemin devenu faux ».
 check_declaration() {
-  local file="$1" label="$2"
-  local short; short="$(printf '%s' "$file" | sed "s|^$HOME|~|")"
+  local file="$1" label="$2" needle="$3" stale="$4"
+  local short_file; short_file="$(short "$file")"
 
   if [ ! -f "$file" ]; then
-    todo "$label — $short n'existe pas encore. Crée-le avec ce contenu :"
+    todo "$label — $short_file n'existe pas encore. Crée-le avec ce contenu :"
     return 1
   fi
 
-  if declared_in "$file"; then
-    ok "$label — hook déclaré dans $short, chemin valide"
+  if declared_in "$file" "$needle"; then
+    ok "$label — déclaré dans $short_file, chemin valide"
     return 0
   fi
 
-  if grep -q 'update_memory\.js' "$file"; then
-    todo "$label — une déclaration existe dans $short mais pointe ailleurs.
-Remplace son chemin par : $HOOK_PATH"
+  if grep -q "$stale" "$file"; then
+    todo "$label — une déclaration existe dans $short_file mais pointe ailleurs.
+Remplace son chemin par : $needle"
     return 1
   fi
 
-  todo "$label — hook non déclaré dans $short. Ajoute cette entrée dans hooks.SessionStart :"
+  todo "$label — non déclaré dans $short_file. Ajoute ceci :"
   return 1
 }
 
-hook_block() {
+memory_block_json() {
   cat <<JSON
+  Dans hooks.SessionStart :
     {
       "hooks": [
         { "type": "command", "command": "node $HOOK_PATH" }
@@ -326,10 +366,49 @@ hook_block() {
 JSON
 }
 
-say "Déclarations"
+memory_block_toml() {
+  cat <<TOML
+  En dehors du bloc géré par vibe-island :
+    [[hooks]]
+    event = "SessionStart"
+    command = "node $HOOK_PATH"
+TOML
+}
 
-check_declaration "$CLAUDE_SETTINGS" "Claude Code" || { say; hook_block; }
-check_declaration "$CODEX_HOOKS"     "Codex"       || { say; hook_block; }
+# Un événement par entrée, le nom canonique passé en argument : journal.cjs le
+# lit dans argv avant de retomber sur hook_event_name, que tous les hôtes
+# n'orthographient pas pareil.
+telemetry_block_json() {
+  cat <<JSON
+  Dans hooks.SessionStart :
+    { "hooks": [ { "type": "command", "command": "node $TELEMETRY_HOOK session-start" } ] }
+  Dans hooks.Stop :
+    { "hooks": [ { "type": "command", "command": "node $TELEMETRY_HOOK turn-end" } ] }
+  Dans hooks.PostToolUse :
+    { "hooks": [ { "type": "command", "command": "node $TELEMETRY_HOOK tool-used" } ] }
+JSON
+}
+
+say "Déclarations — mémoire"
+
+# Les quatre CLI, parce que update_memory.js ne dépend d'aucun hôte : il réécrit
+# CLAUDE.md et AGENTS.md dans le projet ouvert, sans jamais lire qui l'appelle.
+check_declaration "$CLAUDE_SETTINGS" "Claude Code" "$HOOK_PATH" 'update_memory\.js' || { say; memory_block_json; }
+check_declaration "$CODEX_HOOKS"     "Codex"       "$HOOK_PATH" 'update_memory\.js' || { say; memory_block_json; }
+check_declaration "$AGY_SETTINGS"    "AGY"         "$HOOK_PATH" 'update_memory\.js' || { say; memory_block_json; }
+check_declaration "$KIMI_CONFIG"     "Kimi"        "$HOOK_PATH" 'update_memory\.js' || { say; memory_block_toml; }
+
+say
+say "Déclarations — télémétrie"
+
+# Deux CLI seulement, et c'est une limite du hook, pas un choix de déploiement :
+# detectHost ne connaît que claude-code, codex, copilot, cursor et opencode. Un
+# hôte non reconnu n'échoue pas, il écrit une ligne _unrecognised.jsonl et rend
+# la main — donc déclarer journal.cjs dans Kimi ou AGY produirait un marqueur,
+# jamais une mesure. À rouvrir si detectHost apprend à les lire.
+check_declaration "$CLAUDE_SETTINGS" "Claude Code" "$TELEMETRY_HOOK" 'journal\.cjs' || { say; telemetry_block_json; }
+check_declaration "$CODEX_HOOKS"     "Codex"       "$TELEMETRY_HOOK" 'journal\.cjs' || { say; telemetry_block_json; }
+say "Kimi, AGY — hors de portée du hook (hôtes inconnus de detectHost), rien à déclarer."
 
 # Codex n'exécute ses hooks que si la fonctionnalité est activée. Une déclaration
 # correcte dans un Codex où hooks = false ne sert à rien, et ne dit rien non plus.
@@ -350,8 +429,8 @@ say "─────────────────────────
 say "AIDD $VERSION déployé."
 say
 say "Claude Code, Codex et Kimi reçoivent les agents ; AGY non (pas de format cible)."
-say "Le hook reste limité à Claude Code et Codex : la mémoire projet ne se"
-say "synchronise que dans ces deux-là."
+say "La mémoire projet se synchronise dans les quatre ; la télémétrie n'est"
+say "lisible que par Claude Code et Codex."
 say
 
 if [ "$TODO_COUNT" -gt 0 ]; then

@@ -17,9 +17,13 @@ set -uo pipefail
 
 PREFIX="aidd-"
 HOOK_PATH="$HOME/.aidd/hooks/update_memory.js"
+TELEMETRY_DIR="$HOME/.aidd/hooks/aidd-telemetry"
+TELEMETRY_HOOK="$TELEMETRY_DIR/journal.cjs"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 CODEX_HOOKS="$HOME/.codex/hooks.json"
 CODEX_CONFIG="$HOME/.codex/config.toml"
+KIMI_CONFIG="$HOME/.kimi-code/config.toml"
+AGY_SETTINGS="$HOME/.gemini/settings.json"
 
 SKILL_DIRS=(
   "$HOME/.claude/skills"
@@ -105,14 +109,14 @@ check_agents "$HOME/.claude/agents"    md
 check_agents "$HOME/.codex/agents"     toml
 check_agents "$HOME/.kimi-code/agents" md
 
-# ── Hook ──────────────────────────────────────────────────────────
+# ── Hooks ─────────────────────────────────────────────────────────
 #
 # Trois conditions distinctes, qui échouent séparément : le fichier existe,
 # il est déclaré, et Codex a le droit d'exécuter des hooks. Une seule qui
 # manque suffit à ce que la mémoire projet ne se synchronise jamais — sans
 # la moindre erreur affichée.
 
-printf '\nHook\n'
+printf '\nHooks\n'
 
 if [ -f "$HOOK_PATH" ]; then
   pass "$(short "$HOOK_PATH")"
@@ -120,19 +124,39 @@ else
   fail "$(short "$HOOK_PATH") — absent"
 fi
 
+# journal.cjs seul ne prouve rien : il charge hooks/lib/, et un lib/ manquant le
+# fait sortir en silence comme le reste. Les deux sont donc vérifiés.
+if [ -f "$TELEMETRY_HOOK" ] && [ -d "$TELEMETRY_DIR/lib" ]; then
+  pass "$(short "$TELEMETRY_HOOK") (+ lib/)"
+else
+  fail "$(short "$TELEMETRY_HOOK") — absent ou amputé de lib/"
+fi
+
 check_declared() {
-  local file="$1" label="$2"
+  local file="$1" label="$2" needle="$3"
   if [ ! -f "$file" ]; then
     fail "$label — $(short "$file") absent"
-  elif grep -qF "$HOOK_PATH" "$file"; then
+  # Antislashs retirés : JSON peut échapper les barres obliques (« \/ »), ce que
+  # fait ~/.codex/hooks.json, et le chemin brut ne s'y retrouverait pas.
+  elif tr -d '\\' < "$file" | grep -qF "$needle"; then
     pass "$label — déclaré dans $(short "$file")"
   else
     fail "$label — non déclaré dans $(short "$file")"
   fi
 }
 
-check_declared "$CLAUDE_SETTINGS" "Claude Code"
-check_declared "$CODEX_HOOKS"     "Codex"
+printf '\n  mémoire\n'
+check_declared "$CLAUDE_SETTINGS" "Claude Code" "$HOOK_PATH"
+check_declared "$CODEX_HOOKS"     "Codex"       "$HOOK_PATH"
+check_declared "$AGY_SETTINGS"    "AGY"         "$HOOK_PATH"
+check_declared "$KIMI_CONFIG"     "Kimi"        "$HOOK_PATH"
+
+# Kimi et AGY sont absents volontairement : detectHost ne les reconnaît pas, une
+# déclaration chez eux n'écrirait qu'un marqueur _unrecognised.jsonl.
+printf '\n  télémétrie\n'
+check_declared "$CLAUDE_SETTINGS" "Claude Code" "$TELEMETRY_HOOK"
+check_declared "$CODEX_HOOKS"     "Codex"       "$TELEMETRY_HOOK"
+printf '\n'
 
 if awk '/^\[features\]/ { f = 1; next } /^\[/ { f = 0 } f && /^[[:space:]]*hooks[[:space:]]*=[[:space:]]*true/ { ok = 1 } END { exit !ok }' "$CODEX_CONFIG" 2>/dev/null; then
   pass "Codex — hooks activés dans $(short "$CODEX_CONFIG")"
