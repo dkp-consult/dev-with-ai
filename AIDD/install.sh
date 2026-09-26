@@ -27,7 +27,7 @@ set -euo pipefail
 
 # ── Configuration ─────────────────────────────────────────────────
 
-SOURCE="${AIDD_SOURCE:-$HOME/dev/aidd-framework}"
+SOURCE="${AIDD_SOURCE:-$HOME/dev/aidd-works/framework}"
 DRY_RUN=0
 DO_PULL=0
 
